@@ -380,6 +380,20 @@ impl Buffer {
     /// grapheme).
     #[inline]
     pub fn set_grapheme(&mut self, x: u16, y: u16, grapheme: &str, width: usize, style: Style) {
+        // Terminals act on control chars (ESC, BS, ...) instead of printing them,
+        // which corrupts the screen, so draw a visible symbol in their place.
+        let mut picture = [0u8; 4];
+        let grapheme = match grapheme.chars().next() {
+            Some(ch) if ch.is_control() => {
+                let symbol = match ch {
+                    '\0'..='\x1f' => char::from_u32(0x2400 + ch as u32).unwrap_or('\u{FFFD}'),
+                    '\x7f' => '\u{2421}',
+                    _ => '\u{FFFD}',
+                };
+                &*symbol.encode_utf8(&mut picture)
+            }
+            _ => grapheme,
+        };
         let index = self.index_of(x, y);
         let cell = &mut self.content[index];
         cell.set_symbol_with_width(grapheme, width as u8);

@@ -304,6 +304,9 @@ pub struct Config {
     pub mouse_yank_register: char,
     /// Shell to use for shell commands. Defaults to ["cmd", "/C"] on Windows and ["sh", "-c"] otherwise.
     pub shell: Vec<String>,
+    /// Program and arguments that open a Markdown file in a previewer. Arguments support
+    /// `%{...}` expansions. Defaults to `["typora", "%{file_path_absolute}"]`.
+    pub markdown_preview: Vec<String>,
     /// Line number mode.
     pub line_number: LineNumber,
     /// Highlight the lines cursors are currently on. Defaults to false.
@@ -385,6 +388,8 @@ pub struct Config {
     pub whitespace: WhitespaceConfig,
     /// Persistently display open buffers along the top
     pub bufferline: BufferLine,
+    /// File tree sidebar on the left.
+    pub sidebar: SidebarConfig,
     /// Vertical indent width guides.
     pub indent_guides: IndentGuidesConfig,
     /// Whether to color modes with different colors. Defaults to `false`.
@@ -860,6 +865,34 @@ impl Default for CursorShapeConfig {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
+pub struct SidebarConfig {
+    /// Whether the sidebar is shown on startup. Defaults to `false`.
+    pub visible: bool,
+    /// Width in columns, capped at half the screen. Defaults to `30`.
+    pub width: u16,
+}
+
+impl Default for SidebarConfig {
+    fn default() -> Self {
+        Self {
+            visible: false,
+            width: 30,
+        }
+    }
+}
+
+/// Runtime sidebar state shared by commands and the UI.
+#[derive(Debug, Clone, Copy)]
+pub struct SidebarState {
+    pub visible: bool,
+    /// Keys go to the sidebar instead of the focused view.
+    pub focused: bool,
+    /// Width from dragging the border; replaces the config width until exit.
+    pub resized_width: Option<u16>,
+}
+
 /// bufferline render modes
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -1184,6 +1217,7 @@ impl Default for Config {
             } else {
                 vec!["sh".to_owned(), "-c".to_owned()]
             },
+            markdown_preview: vec!["typora".to_owned(), "%{file_path_absolute}".to_owned()],
             line_number: LineNumber::Absolute,
             cursorline: false,
             cursorcolumn: false,
@@ -1212,7 +1246,8 @@ impl Default for Config {
             terminal: get_terminal_provider(),
             rulers: Vec::new(),
             whitespace: WhitespaceConfig::default(),
-            bufferline: BufferLine::default(),
+            bufferline: BufferLine::Multiple,
+            sidebar: SidebarConfig::default(),
             indent_guides: IndentGuidesConfig::default(),
             color_modes: false,
             soft_wrap: SoftWrap {
@@ -1311,6 +1346,7 @@ pub struct Editor {
 
     pub status_msg: Option<(Cow<'static, str>, Severity)>,
     pub autoinfo: Option<Info>,
+    pub sidebar: SidebarState,
 
     pub config: Arc<dyn DynAccess<Config>>,
     pub auto_pairs: Option<AutoPairs>,
@@ -1453,6 +1489,11 @@ impl Editor {
             ))),
             status_msg: None,
             autoinfo: None,
+            sidebar: SidebarState {
+                visible: conf.sidebar.visible,
+                focused: false,
+                resized_width: None,
+            },
             idle_timer: Box::pin(sleep(conf.idle_timeout)),
             redraw_timer: Box::pin(sleep(Duration::MAX)),
             last_motion: None,
@@ -1944,6 +1985,7 @@ impl Editor {
 
         if !matches!(action, Action::Load) {
             self.enter_normal_mode();
+            self.sidebar.focused = false;
         }
 
         let focust_lost = match action {
@@ -2277,6 +2319,8 @@ impl Editor {
     }
 
     pub fn focus(&mut self, view_id: ViewId) {
+        // Focusing any view (even the current one) takes focus back from the sidebar.
+        self.sidebar.focused = false;
         if self.tree.focus == view_id {
             return;
         }
@@ -2315,6 +2359,15 @@ impl Editor {
         if let Some(id) = self.tree.find_split_in_direction(current_view, direction) {
             self.focus(id)
         }
+    }
+
+    /// Shows the sidebar and moves keyboard focus to it, leaving the current mode.
+    pub fn focus_sidebar(&mut self) {
+        self.enter_normal_mode();
+        let (view, doc) = current!(self);
+        doc.append_changes_to_history(view);
+        self.sidebar.visible = true;
+        self.sidebar.focused = true;
     }
 
     pub fn swap_split_in_direction(&mut self, direction: tree::Direction) {

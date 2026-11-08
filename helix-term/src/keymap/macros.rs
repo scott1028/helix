@@ -83,6 +83,13 @@ macro_rules! keymap {
         $crate::keymap::KeyTrie::MappableCommand($crate::commands::MappableCommand::$cmd)
     };
 
+    // Typable command with arguments, e.g. ":buffer-goto 1"
+    (@trie $cmd:literal) => {
+        $crate::keymap::KeyTrie::MappableCommand(
+            $cmd.parse::<$crate::commands::MappableCommand>().unwrap(),
+        )
+    };
+
     (@trie
         { $label:literal $(sticky=$sticky:literal)? $($($key:literal)|+ => $value:tt,)+ }
     ) => {

@@ -1,11 +1,14 @@
 ## Keymap
 
 - [Normal mode](#normal-mode)
+  - [easy-helix default keys](#easy-helix-default-keys)
   - [Movement](#movement)
   - [Changes](#changes)
     - [Shell](#shell)
   - [Selection manipulation](#selection-manipulation)
   - [Search](#search)
+  - [Tabs](#tabs)
+  - [Sidebar](#sidebar)
   - [Minor modes](#minor-modes)
     - [View mode](#view-mode)
     - [Goto mode](#goto-mode)
@@ -30,6 +33,40 @@
 ## Normal mode
 
 Normal mode is the default mode when you launch helix. You can return to it from other modes by pressing the `Escape` key.
+
+### easy-helix default keys
+
+easy-helix adds these normal mode keys on top of the Helix keys described on
+this page. Where they take a key that Helix already uses, they replace it in
+normal mode only; select and insert mode keep the Helix keys.
+
+| Key                       | Description                                          | Command                                                  | Replaces                         |
+| -----                     | -----------                                          | -------                                                  | --------                         |
+| `Ctrl-w`                  | Close the tab (refuses when it has unsaved changes)  | `:buffer-close`                                          | [Window mode](#window-mode), now on `Space-w` |
+| `F5`                      | Reload the file from disk                            | `:reload`                                                |                                  |
+| `Ctrl-Left`, `Ctrl-Down`, `Ctrl-Up`, `Ctrl-Right` | Move focus to the split (or the sidebar) on that side | `jump_view_left`, `jump_view_down`, `jump_view_up`, `jump_view_right` | |
+| `Ctrl-n`                  | Open a new scratch buffer in a vertical split        | `:vnew`                                                  |                                  |
+| `Ctrl-\`                  | Split the view vertically                            | `vsplit`                                                 |                                  |
+| `Alt-Left`, `Alt-Right`   | Go to previous / next tab                            | `goto_previous_buffer`, `goto_next_buffer`               | `Alt-left`, `Alt-right` (select sibling syntax node, still on `Alt-p`, `Alt-n`) |
+| `yy`                      | Yank the line                                        | `extend_line`, `yank`                                    | `y` (yank the selection)         |
+| `dd`                      | Delete the line                                      | `extend_line`, `delete_selection`                        | `d` (delete the selection)       |
+| `Ctrl-r`                  | Redo                                                 | `redo`                                                   |                                  |
+| `Ctrl-q`                  | Close the view, dropping unsaved changes             | `:quit!`                                                 |                                  |
+| `Alt-w`                   | Close the tab, dropping unsaved changes              | `:buffer-close!`                                         |                                  |
+| `Ctrl-x`                  | Write the file and close the view                    | `:write-quit!`                                           | `Ctrl-x` (decrement)             |
+| `L`                       | Show or hide the line numbers                        | `:toggle gutters.layout ...`                             |                                  |
+| `W`                       | Turn soft wrap on or off                             | `:toggle soft-wrap.enable`                               | `W` (next WORD start)            |
+| `Alt-l` then `m`, `t`, `j`, `p` | Set the language to Markdown, TypeScript, JavaScript or Python | `:set-language ...`                    |                                  |
+
+To get a Helix key back, map it in your `config.toml`, for example:
+
+```toml
+[keys.normal]
+y = "yank"
+d = "delete_selection"
+W = "move_next_long_word_start"
+C-x = "decrement"
+```
 
 ### Movement
 
@@ -166,6 +203,55 @@ Search commands all operate on the `/` register by default. To use a different r
 | `*`   | Use current selection as the search pattern, automatically wrapping with `\b` on word boundaries | `search_selection_detect_word_boundaries` |
 | `Alt-*` | Use current selection as the search pattern | `search_selection` |
 
+### Tabs
+
+Tabs are the buffers shown in the bufferline (see the `bufferline` option in
+[`[editor]`](./editor.md#editor-section)), in the order the buffers were opened.
+
+| Key                                    | Description                                         | Command                |
+| -----                                  | -----------                                         | -------                |
+| `Ctrl-PageDown`, `Ctrl-Tab`            | Go to next tab                                      | `goto_next_buffer`     |
+| `Ctrl-PageUp`, `Ctrl-Shift-Tab`        | Go to previous tab                                  | `goto_previous_buffer` |
+| `Alt-1` .. `Alt-9`                     | Go to tab N (the last tab if there are fewer tabs)  | `:buffer-goto N`       |
+| `Alt-Left`, `Alt-Right`                | Go to previous / next tab ([easy-helix default](#easy-helix-default-keys)) | `goto_previous_buffer`, `goto_next_buffer` |
+
+> 💡 `Ctrl-Tab` and `Ctrl-Shift-Tab` need a terminal with the kitty keyboard protocol.
+
+> 💡 Some terminals keep tab keys for their own tabs. Ghostty, for example, takes
+> `Ctrl-PageUp`, `Ctrl-PageDown`, `Ctrl-Tab`, `Ctrl-Shift-Tab` and `Alt-1` .. `Alt-9`
+> by default, so Helix never gets them. Use `Alt-Left` / `Alt-Right` or `gn` / `gp` there.
+
+### Sidebar
+
+The sidebar is a file tree rooted at the current working directory (see
+[`[editor.sidebar]`](./editor.md#editorsidebar-section)).
+
+| Key                 | Description                                                     | Command                |
+| -----               | -----------                                                     | -------                |
+| `Space-t`           | Show or hide the sidebar                                        | `toggle_sidebar`       |
+| `Ctrl-e`            | Move focus between the sidebar and the editor                   | `toggle_sidebar_focus` |
+| `Ctrl-Left`, `Space-w h` | From the leftmost view, move focus to the sidebar          | `jump_view_left`       |
+| `Ctrl-Right`, `Space-w l` | From the sidebar, move focus back to the editor           | `jump_view_right`      |
+
+While the sidebar has focus:
+
+| Key                                 | Description                                              |
+| -----                               | -----------                                              |
+| `j`, `k`, `Down`, `Up`              | Move down / up (accepts a count)                         |
+| `h`, `Left`                         | Collapse the directory, or go to the parent directory    |
+| `l`, `Right`                        | Expand the directory, or open the file                   |
+| `Enter`, `o`                        | Expand / collapse the directory, or open the file        |
+| `Home`, `G`, `End`                  | Go to the first / last row                               |
+| `Ctrl-u`, `Ctrl-d`                  | Move half a page up / down                               |
+| `PageUp`, `PageDown`                | Move a page up / down                                    |
+| `R`                                 | Reload the tree from disk                                |
+| `Escape`                            | Move focus back to the editor                            |
+
+Other keys go through the normal mode keymap, but only commands that don't
+edit the buffer run: typable commands (`:`), pickers, `Space-t`, tab switching
+and window focus commands. Opening a file or switching tabs moves focus back to
+the editor.
+
 ### Minor modes
 
 These sub-modes are accessible from normal mode and typically switch back to normal mode after a command.
@@ -260,7 +346,8 @@ TODO: Mappings for selecting syntax nodes (a superset of `[`).
 
 #### Window mode
 
-Accessed by typing `Ctrl-w` in [normal mode](#normal-mode).
+Accessed by typing `Ctrl-w` in [normal mode](#normal-mode). In easy-helix,
+`Ctrl-w` closes the tab, so use `Space-w` (see [Space mode](#space-mode)).
 
 This layer is similar to Vim keybindings as Kakoune does not support windows.
 
@@ -296,7 +383,10 @@ This layer is a kludge of mappings, mostly pickers.
 | `f`     | Open file picker at LSP workspace root                                  | `file_picker`                              |
 | `F`     | Open file picker at current working directory                           | `file_picker_in_current_directory`         |
 | `e`     | Open file explorer at workspace root                                     | `file_explorer`                            |
+| `E`     | Open file explorer at current buffer's directory                        | `file_explorer_in_current_buffer_directory`|
 | `.`     | Open file explorer at current buffer's directory                        | `file_explorer_in_current_buffer_directory`|
+| `t`     | Show or hide the file tree sidebar                                       | `toggle_sidebar`                           |
+| `v`     | Preview the Markdown file in an external program (greyed out when the program isn't found) | `markdown_preview`                         |
 | `b`     | Open buffer picker                                                      | `buffer_picker`                            |
 | `j`     | Open jumplist picker                                                    | `jumplist_picker`                          |
 | `g`     | Open changed file picker                                                | `changed_file_picker`                      |

@@ -19,7 +19,7 @@
 | `move_prev_word_start` | Move to start of previous word | normal: `` b `` |
 | `move_next_word_end` | Move to end of next word | normal: `` e `` |
 | `move_prev_word_end` | Move to end of previous word |  |
-| `move_next_long_word_start` | Move to start of next long word | normal: `` W `` |
+| `move_next_long_word_start` | Move to start of next long word |  |
 | `move_prev_long_word_start` | Move to start of previous long word | normal: `` B `` |
 | `move_next_long_word_end` | Move to end of next long word | normal: `` E `` |
 | `move_prev_long_word_end` | Move to end of previous long word |  |
@@ -87,7 +87,7 @@
 | `select_line_below` | Select current line, if already selected, extend or shrink line below based on the anchor |  |
 | `extend_to_line_bounds` | Extend selection to line bounds | normal: `` X ``, select: `` X `` |
 | `shrink_to_line_bounds` | Shrink selection to line bounds | normal: `` <A-x> ``, select: `` <A-x> `` |
-| `delete_selection` | Delete selection | normal: `` d ``, select: `` d `` |
+| `delete_selection` | Delete selection | select: `` d `` |
 | `delete_selection_noyank` | Delete selection without yanking | normal: `` <A-d> ``, select: `` <A-d> `` |
 | `change_selection` | Change selection | normal: `` c ``, select: `` c `` |
 | `change_selection_noyank` | Change selection without yanking | normal: `` <A-c> ``, select: `` <A-c> `` |
@@ -101,8 +101,11 @@
 | `file_picker_in_current_buffer_directory` | Open file picker at current buffer's directory |  |
 | `file_picker_in_current_directory` | Open file picker at current working directory | normal: `` <space>F ``, select: `` <space>F `` |
 | `file_explorer` | Open file explorer in workspace root | normal: `` <space>e ``, select: `` <space>e `` |
-| `file_explorer_in_current_buffer_directory` | Open file explorer at current buffer's directory | normal: `` <space>. ``, select: `` <space>. `` |
+| `file_explorer_in_current_buffer_directory` | Open file explorer at current buffer's directory | normal: `` <space>. ``, `` <space>E ``, select: `` <space>. ``, `` <space>E `` |
 | `file_explorer_in_current_directory` | Open file explorer at current working directory |  |
+| `toggle_sidebar` | Show or hide the file tree sidebar | normal: `` <space>t ``, select: `` <space>t `` |
+| `toggle_sidebar_focus` | Move focus between the file tree sidebar and the editor | normal: `` <C-e> ``, select: `` <C-e> `` |
+| `markdown_preview` | Preview Markdown file in external program | normal: `` <space>v ``, select: `` <space>v `` |
 | `code_action` | Perform code action | normal: `` <space>a ``, select: `` <space>a `` |
 | `buffer_picker` | Open buffer picker | normal: `` <space>b ``, select: `` <space>b `` |
 | `jumplist_picker` | Open jumplist picker | normal: `` <space>j ``, select: `` <space>j `` |
@@ -135,8 +138,8 @@
 | `extend_to_file_start` | Extend to line number `<n>` else file start | select: `` gg `` |
 | `extend_to_file_end` | Extend to file end |  |
 | `goto_file` | Goto files/URLs in selections | normal: `` gf ``, select: `` gf `` |
-| `goto_file_hsplit` | Goto files in selections (hsplit) | normal: `` <C-w>f ``, `` <space>wf ``, select: `` <C-w>f ``, `` <space>wf `` |
-| `goto_file_vsplit` | Goto files in selections (vsplit) | normal: `` <C-w>F ``, `` <space>wF ``, select: `` <C-w>F ``, `` <space>wF `` |
+| `goto_file_hsplit` | Goto files in selections (hsplit) | normal: `` <space>wf ``, select: `` <C-w>f ``, `` <space>wf `` |
+| `goto_file_vsplit` | Goto files in selections (vsplit) | normal: `` <space>wF ``, select: `` <C-w>F ``, `` <space>wF `` |
 | `goto_reference` | Goto references | normal: `` gr ``, select: `` gr `` |
 | `goto_window_top` | Goto window top | normal: `` gt ``, select: `` gt `` |
 | `goto_window_center` | Goto window center | normal: `` gc ``, select: `` gc `` |
@@ -159,8 +162,8 @@
 | `goto_line_end` | Goto line end | normal: `` gl ``, `` <end> ``, select: `` gl `` |
 | `goto_column` | Goto column | normal: `` g\| `` |
 | `extend_to_column` | Extend to column | select: `` g\| `` |
-| `goto_next_buffer` | Goto next buffer | normal: `` gn ``, select: `` gn `` |
-| `goto_previous_buffer` | Goto previous buffer | normal: `` gp ``, select: `` gp `` |
+| `goto_next_buffer` | Goto next buffer | normal: `` gn ``, `` <C-tab> ``, `` <A-right> ``, `` <C-pagedown> ``, select: `` gn ``, `` <C-tab> ``, `` <C-pagedown> `` |
+| `goto_previous_buffer` | Goto previous buffer | normal: `` gp ``, `` <A-left> ``, `` <S-C-tab> ``, `` <C-pageup> ``, select: `` gp ``, `` <S-C-tab> ``, `` <C-pageup> `` |
 | `goto_line_end_newline` | Goto newline at line end | insert: `` <end> `` |
 | `goto_first_nonwhitespace` | Goto first non-blank in line | normal: `` gs ``, select: `` gs `` |
 | `trim_selections` | Trim whitespace from selections | normal: `` _ ``, select: `` _ `` |
@@ -181,11 +184,11 @@
 | `kill_to_line_start` | Delete till start of line | insert: `` <C-u> `` |
 | `kill_to_line_end` | Delete till end of line | insert: `` <C-k> `` |
 | `undo` | Undo change | normal: `` u ``, select: `` u `` |
-| `redo` | Redo change | normal: `` U ``, select: `` U `` |
+| `redo` | Redo change | normal: `` U ``, `` <C-r> ``, select: `` U `` |
 | `earlier` | Move backward in history | normal: `` <A-u> ``, select: `` <A-u> `` |
 | `later` | Move forward in history | normal: `` <A-U> ``, select: `` <A-U> `` |
 | `commit_undo_checkpoint` | Commit changes to new checkpoint | insert: `` <C-s> `` |
-| `yank` | Yank selection | normal: `` y ``, select: `` y `` |
+| `yank` | Yank selection | select: `` y `` |
 | `yank_to_clipboard` | Yank selections to clipboard | normal: `` <space>y ``, select: `` <space>y `` |
 | `yank_to_primary_clipboard` | Yank selections to primary clipboard |  |
 | `yank_joined` | Join and yank selections |  |
@@ -224,30 +227,30 @@
 | `reverse_selection_contents` | Reverse selections contents |  |
 | `expand_selection` | Expand selection to parent syntax node | normal: `` <A-o> ``, `` <A-up> ``, select: `` <A-o> ``, `` <A-up> `` |
 | `shrink_selection` | Shrink selection to previously expanded syntax node | normal: `` <A-i> ``, `` <A-down> ``, select: `` <A-i> ``, `` <A-down> `` |
-| `select_next_sibling` | Select next sibling in the syntax tree | normal: `` <A-n> ``, `` <A-right> ``, select: `` <A-n> ``, `` <A-right> `` |
-| `select_prev_sibling` | Select previous sibling the in syntax tree | normal: `` <A-p> ``, `` <A-left> ``, select: `` <A-p> ``, `` <A-left> `` |
+| `select_next_sibling` | Select next sibling in the syntax tree | normal: `` <A-n> ``, select: `` <A-n> ``, `` <A-right> `` |
+| `select_prev_sibling` | Select previous sibling the in syntax tree | normal: `` <A-p> ``, select: `` <A-p> ``, `` <A-left> `` |
 | `select_all_siblings` | Select all siblings of the current node | normal: `` <A-a> ``, select: `` <A-a> `` |
 | `select_all_children` | Select all children of the current node | normal: `` <A-I> ``, `` <S-A-down> ``, select: `` <A-I> ``, `` <S-A-down> `` |
 | `jump_forward` | Jump forward on jumplist | normal: `` <C-i> ``, `` <tab> ``, select: `` <C-i> ``, `` <tab> `` |
 | `jump_backward` | Jump backward on jumplist | normal: `` <C-o> ``, select: `` <C-o> `` |
 | `save_selection` | Save current selection to jumplist | normal: `` <C-s> ``, select: `` <C-s> `` |
-| `jump_view_right` | Jump to right split | normal: `` <C-w>l ``, `` <space>wl ``, `` <C-w><C-l> ``, `` <C-w><right> ``, `` <space>w<C-l> ``, `` <space>w<right> ``, select: `` <C-w>l ``, `` <space>wl ``, `` <C-w><C-l> ``, `` <C-w><right> ``, `` <space>w<C-l> ``, `` <space>w<right> `` |
-| `jump_view_left` | Jump to left split | normal: `` <C-w>h ``, `` <space>wh ``, `` <C-w><C-h> ``, `` <C-w><left> ``, `` <space>w<C-h> ``, `` <space>w<left> ``, select: `` <C-w>h ``, `` <space>wh ``, `` <C-w><C-h> ``, `` <C-w><left> ``, `` <space>w<C-h> ``, `` <space>w<left> `` |
-| `jump_view_up` | Jump to split above | normal: `` <C-w>k ``, `` <C-w><up> ``, `` <space>wk ``, `` <C-w><C-k> ``, `` <space>w<up> ``, `` <space>w<C-k> ``, select: `` <C-w>k ``, `` <C-w><up> ``, `` <space>wk ``, `` <C-w><C-k> ``, `` <space>w<up> ``, `` <space>w<C-k> `` |
-| `jump_view_down` | Jump to split below | normal: `` <C-w>j ``, `` <space>wj ``, `` <C-w><C-j> ``, `` <C-w><down> ``, `` <space>w<C-j> ``, `` <space>w<down> ``, select: `` <C-w>j ``, `` <space>wj ``, `` <C-w><C-j> ``, `` <C-w><down> ``, `` <space>w<C-j> ``, `` <space>w<down> `` |
-| `swap_view_right` | Swap with right split | normal: `` <C-w>L ``, `` <space>wL ``, select: `` <C-w>L ``, `` <space>wL `` |
-| `swap_view_left` | Swap with left split | normal: `` <C-w>H ``, `` <space>wH ``, select: `` <C-w>H ``, `` <space>wH `` |
-| `swap_view_up` | Swap with split above | normal: `` <C-w>K ``, `` <space>wK ``, select: `` <C-w>K ``, `` <space>wK `` |
-| `swap_view_down` | Swap with split below | normal: `` <C-w>J ``, `` <space>wJ ``, select: `` <C-w>J ``, `` <space>wJ `` |
-| `transpose_view` | Transpose splits | normal: `` <C-w>t ``, `` <space>wt ``, `` <C-w><C-t> ``, `` <space>w<C-t> ``, select: `` <C-w>t ``, `` <space>wt ``, `` <C-w><C-t> ``, `` <space>w<C-t> `` |
-| `rotate_view` | Goto next window | normal: `` <C-w>w ``, `` <space>ww ``, `` <C-w><C-w> ``, `` <space>w<C-w> ``, select: `` <C-w>w ``, `` <space>ww ``, `` <C-w><C-w> ``, `` <space>w<C-w> `` |
+| `jump_view_right` | Jump to right split | normal: `` <C-right> ``, `` <space>wl ``, `` <space>w<C-l> ``, `` <space>w<right> ``, select: `` <C-w>l ``, `` <space>wl ``, `` <C-w><C-l> ``, `` <C-w><right> ``, `` <space>w<C-l> ``, `` <space>w<right> `` |
+| `jump_view_left` | Jump to left split | normal: `` <C-left> ``, `` <space>wh ``, `` <space>w<C-h> ``, `` <space>w<left> ``, select: `` <C-w>h ``, `` <space>wh ``, `` <C-w><C-h> ``, `` <C-w><left> ``, `` <space>w<C-h> ``, `` <space>w<left> `` |
+| `jump_view_up` | Jump to split above | normal: `` <C-up> ``, `` <space>wk ``, `` <space>w<up> ``, `` <space>w<C-k> ``, select: `` <C-w>k ``, `` <C-w><up> ``, `` <space>wk ``, `` <C-w><C-k> ``, `` <space>w<up> ``, `` <space>w<C-k> `` |
+| `jump_view_down` | Jump to split below | normal: `` <C-down> ``, `` <space>wj ``, `` <space>w<C-j> ``, `` <space>w<down> ``, select: `` <C-w>j ``, `` <space>wj ``, `` <C-w><C-j> ``, `` <C-w><down> ``, `` <space>w<C-j> ``, `` <space>w<down> `` |
+| `swap_view_right` | Swap with right split | normal: `` <space>wL ``, select: `` <C-w>L ``, `` <space>wL `` |
+| `swap_view_left` | Swap with left split | normal: `` <space>wH ``, select: `` <C-w>H ``, `` <space>wH `` |
+| `swap_view_up` | Swap with split above | normal: `` <space>wK ``, select: `` <C-w>K ``, `` <space>wK `` |
+| `swap_view_down` | Swap with split below | normal: `` <space>wJ ``, select: `` <C-w>J ``, `` <space>wJ `` |
+| `transpose_view` | Transpose splits | normal: `` <space>wt ``, `` <space>w<C-t> ``, select: `` <C-w>t ``, `` <space>wt ``, `` <C-w><C-t> ``, `` <space>w<C-t> `` |
+| `rotate_view` | Goto next window | normal: `` <space>ww ``, `` <space>w<C-w> ``, select: `` <C-w>w ``, `` <space>ww ``, `` <C-w><C-w> ``, `` <space>w<C-w> `` |
 | `rotate_view_reverse` | Goto previous window |  |
-| `hsplit` | Horizontal bottom split | normal: `` <C-w>s ``, `` <space>ws ``, `` <C-w><C-s> ``, `` <space>w<C-s> ``, select: `` <C-w>s ``, `` <space>ws ``, `` <C-w><C-s> ``, `` <space>w<C-s> `` |
-| `hsplit_new` | Horizontal bottom split scratch buffer | normal: `` <C-w>ns ``, `` <space>wns ``, `` <C-w>n<C-s> ``, `` <space>wn<C-s> ``, select: `` <C-w>ns ``, `` <space>wns ``, `` <C-w>n<C-s> ``, `` <space>wn<C-s> `` |
-| `vsplit` | Vertical right split | normal: `` <C-w>v ``, `` <space>wv ``, `` <C-w><C-v> ``, `` <space>w<C-v> ``, select: `` <C-w>v ``, `` <space>wv ``, `` <C-w><C-v> ``, `` <space>w<C-v> `` |
-| `vsplit_new` | Vertical right split scratch buffer | normal: `` <C-w>nv ``, `` <space>wnv ``, `` <C-w>n<C-v> ``, `` <space>wn<C-v> ``, select: `` <C-w>nv ``, `` <space>wnv ``, `` <C-w>n<C-v> ``, `` <space>wn<C-v> `` |
-| `wclose` | Close window | normal: `` <C-w>q ``, `` <space>wq ``, `` <C-w><C-q> ``, `` <space>w<C-q> ``, select: `` <C-w>q ``, `` <space>wq ``, `` <C-w><C-q> ``, `` <space>w<C-q> `` |
-| `wonly` | Close windows except current | normal: `` <C-w>o ``, `` <space>wo ``, `` <C-w><C-o> ``, `` <space>w<C-o> ``, select: `` <C-w>o ``, `` <space>wo ``, `` <C-w><C-o> ``, `` <space>w<C-o> `` |
+| `hsplit` | Horizontal bottom split | normal: `` <space>ws ``, `` <space>w<C-s> ``, select: `` <C-w>s ``, `` <space>ws ``, `` <C-w><C-s> ``, `` <space>w<C-s> `` |
+| `hsplit_new` | Horizontal bottom split scratch buffer | normal: `` <space>wns ``, `` <space>wn<C-s> ``, select: `` <C-w>ns ``, `` <space>wns ``, `` <C-w>n<C-s> ``, `` <space>wn<C-s> `` |
+| `vsplit` | Vertical right split | normal: `` <C-\> ``, `` <space>wv ``, `` <space>w<C-v> ``, select: `` <C-w>v ``, `` <space>wv ``, `` <C-w><C-v> ``, `` <space>w<C-v> `` |
+| `vsplit_new` | Vertical right split scratch buffer | normal: `` <space>wnv ``, `` <space>wn<C-v> ``, select: `` <C-w>nv ``, `` <space>wnv ``, `` <C-w>n<C-v> ``, `` <space>wn<C-v> `` |
+| `wclose` | Close window | normal: `` <space>wq ``, `` <space>w<C-q> ``, select: `` <C-w>q ``, `` <space>wq ``, `` <C-w><C-q> ``, `` <space>w<C-q> `` |
+| `wonly` | Close windows except current | normal: `` <space>wo ``, `` <space>w<C-o> ``, select: `` <C-w>o ``, `` <space>wo ``, `` <C-w><C-o> ``, `` <space>w<C-o> `` |
 | `select_register` | Select register | normal: `` " ``, select: `` " `` |
 | `insert_register` | Insert register | insert: `` <C-r> `` |
 | `copy_between_registers` | Copy between two registers |  |
@@ -303,7 +306,7 @@
 | `suspend` | Suspend and return to shell | normal: `` <C-z> ``, select: `` <C-z> `` |
 | `rename_symbol` | Rename symbol | normal: `` <space>r ``, select: `` <space>r `` |
 | `increment` | Increment item under cursor | normal: `` <C-a> ``, select: `` <C-a> `` |
-| `decrement` | Decrement item under cursor | normal: `` <C-x> ``, select: `` <C-x> `` |
+| `decrement` | Decrement item under cursor | select: `` <C-x> `` |
 | `record_macro` | Record macro | normal: `` Q ``, select: `` Q `` |
 | `replay_macro` | Replay macro | normal: `` q ``, select: `` q `` |
 | `command_palette` | Open command palette | normal: `` <space>? ``, select: `` <space>? `` |

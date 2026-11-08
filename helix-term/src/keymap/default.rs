@@ -226,7 +226,10 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
             "f" => file_picker,
             "F" => file_picker_in_current_directory,
             "e" => file_explorer,
+            "E" => file_explorer_in_current_buffer_directory,
             "." => file_explorer_in_current_buffer_directory,
+            "t" => toggle_sidebar,
+            "v" => markdown_preview,
             "b" => buffer_picker,
             "j" => jumplist_picker,
             "s" => lsp_or_syntax_symbol_picker,
@@ -338,6 +341,21 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
 
         "C-a" => increment,
         "C-x" => decrement,
+
+        "C-e" => toggle_sidebar_focus,
+
+        // Tabs (bufferline)
+        "C-pagedown" | "C-tab" => goto_next_buffer,
+        "C-pageup" | "C-S-tab" => goto_previous_buffer,
+        "A-1" => ":buffer-goto 1",
+        "A-2" => ":buffer-goto 2",
+        "A-3" => ":buffer-goto 3",
+        "A-4" => ":buffer-goto 4",
+        "A-5" => ":buffer-goto 5",
+        "A-6" => ":buffer-goto 6",
+        "A-7" => ":buffer-goto 7",
+        "A-8" => ":buffer-goto 8",
+        "A-9" => ":buffer-goto 9",
     });
     let mut select = normal.clone();
     select.merge_nodes(keymap!({ "Select mode"
@@ -409,4 +427,47 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         Mode::Select => select,
         Mode::Insert => insert,
     )
+}
+
+/// The easy-helix default keys: `default()` plus the fork's Normal mode keys.
+/// Tests keep using `default()`, so upstream tests run against upstream keys.
+pub fn easy_helix() -> HashMap<Mode, KeyTrie> {
+    let normal = keymap!({ "Normal mode"
+        // VSCode-style. The Window menu stays on `space w`.
+        "C-w" => ":buffer-close",
+        "F5" => ":reload",
+        "C-left" => jump_view_left,
+        "C-down" => jump_view_down,
+        "C-up" => jump_view_up,
+        "C-right" => jump_view_right,
+        "C-n" => ":vnew",
+        "C-\\" => vsplit,
+        // Switch tabs. Replaces the Alt-arrow sibling selection, still on `A-p` / `A-n`.
+        "A-left" => goto_previous_buffer,
+        "A-right" => goto_next_buffer,
+        // Vim-style
+        "y" => { "Yank"
+            "y" => [extend_line, yank],
+        },
+        "d" => { "Delete"
+            "d" => [extend_line, delete_selection],
+        },
+        "C-r" => redo,
+        // These drop unsaved changes, or write them without asking.
+        "C-q" => ":quit!",
+        "A-w" => ":buffer-close!",
+        "C-x" => ":write-quit!",
+        // Shift-l and Shift-w: Helix reads `S-l` as `L`.
+        "L" => r#":toggle gutters.layout ["diagnostics", "spacer", "line-numbers", "spacer", "diff"] ["diagnostics", "spacer", "diff"]"#,
+        "W" => ":toggle soft-wrap.enable",
+        "A-l" => { "Set language"
+            "m" => ":set-language markdown",
+            "t" => ":set-language typescript",
+            "j" => ":set-language javascript",
+            "p" => ":set-language python",
+        },
+    });
+    let mut keys = default();
+    super::merge_keys(&mut keys, hashmap!(Mode::Normal => normal));
+    keys
 }

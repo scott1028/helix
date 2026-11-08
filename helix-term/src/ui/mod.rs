@@ -1,3 +1,4 @@
+mod bufferline;
 mod completion;
 mod document;
 pub(crate) mod editor;
@@ -10,6 +11,7 @@ pub mod picker;
 pub mod popup;
 pub mod prompt;
 mod select;
+pub mod sidebar;
 mod spinner;
 mod statusline;
 mod text;
@@ -31,7 +33,7 @@ pub use select::Select;
 pub use spinner::{ProgressSpinners, Spinner};
 pub use text::Text;
 
-use helix_view::Editor;
+use helix_view::{editor::FileExplorerConfig, Editor};
 use tui::text::{Span, Spans};
 
 use std::path::Path;
@@ -364,20 +366,32 @@ pub fn file_explorer(root: PathBuf, editor: &Editor) -> Result<FileExplorer, std
 }
 
 fn directory_content(root: &Path, editor: &Editor) -> Result<Vec<(PathBuf, bool)>, std::io::Error> {
-    use ignore::WalkBuilder;
+    let mut content = directory_entries(root, &editor.config().file_explorer)?;
 
-    let config = editor.config();
+    if root.parent().is_some() {
+        content.insert(0, (root.join(".."), true));
+    }
+
+    Ok(content)
+}
+
+/// Lists the direct children of `root`, directories first.
+pub(crate) fn directory_entries(
+    root: &Path,
+    config: &FileExplorerConfig,
+) -> Result<Vec<(PathBuf, bool)>, std::io::Error> {
+    use ignore::WalkBuilder;
 
     let mut walk_builder = WalkBuilder::new(root);
 
     let mut content: Vec<(PathBuf, bool)> = walk_builder
-        .hidden(config.file_explorer.hidden)
-        .parents(config.file_explorer.parents)
-        .ignore(config.file_explorer.ignore)
-        .follow_links(config.file_explorer.follow_symlinks)
-        .git_ignore(config.file_explorer.git_ignore)
-        .git_global(config.file_explorer.git_global)
-        .git_exclude(config.file_explorer.git_exclude)
+        .hidden(config.hidden)
+        .parents(config.parents)
+        .ignore(config.ignore)
+        .follow_links(config.follow_symlinks)
+        .git_ignore(config.git_ignore)
+        .git_global(config.git_global)
+        .git_exclude(config.git_exclude)
         .max_depth(Some(1))
         .add_custom_ignore_filename(helix_loader::config_dir().join("ignore"))
         .add_custom_ignore_filename(".helix/ignore")
@@ -389,7 +403,7 @@ fn directory_content(root: &Path, editor: &Editor) -> Result<Vec<(PathBuf, bool)
                     let path = entry.path();
                     let is_dir = path.is_dir();
                     let mut path = path.to_path_buf();
-                    if is_dir && path != root && config.file_explorer.flatten_dirs {
+                    if is_dir && path != root && config.flatten_dirs {
                         while let Some(single_child_directory) = get_child_if_single_dir(&path) {
                             path = single_child_directory;
                         }
@@ -402,10 +416,6 @@ fn directory_content(root: &Path, editor: &Editor) -> Result<Vec<(PathBuf, bool)
         .collect();
 
     content.sort_by(|(path1, is_dir1), (path2, is_dir2)| (!is_dir1, path1).cmp(&(!is_dir2, path2)));
-
-    if root.parent().is_some() {
-        content.insert(0, (root.join(".."), true));
-    }
 
     Ok(content)
 }

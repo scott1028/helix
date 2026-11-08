@@ -1,0 +1,223 @@
+name: easy-helix release
+
+# Fork-only release for easy-helix-v* tags: a Linux x86_64 AppImage and an
+# Apple silicon macOS archive. Upstream release.yml is left unchanged.
+on:
+  push:
+    tags:
+      - "easy-helix-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. easy-helix-v25.07.1.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+  APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+  APPIMAGE_RUNTIME_URL: https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+  APPIMAGE_RUNTIME_SHA256: 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+
+jobs:
+  fetch-grammars:
+    name: Check tag and fetch grammars
+    if: github.repository != 'helix-editor/helix'
+    runs-on: ubuntu-latest
+    outputs:
+      base-version: ${{ steps.version.outputs.base }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check tag against Cargo.toml version
+        id: version
+        run: |
+          # Cargo.toml has 25.7.1; tags use Helix's calendar form 25.07.1 plus a fork revision N.
+          IFS=. read -r major minor patch < <(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          base=$(printf '%s.%02d' "$major" "$minor")
+          if [ "$patch" != 0 ]; then
+            base="$base.$patch"
+          fi
+          rev=${RELEASE_TAG#"easy-helix-v$base."}
+          if [ "$rev" = "$RELEASE_TAG" ] || ! [[ "$rev" =~ ^[1-9][0-9]*$ ]]; then
+            echo "error: tag $RELEASE_TAG must be easy-helix-v$base.<N> with N >= 1" >&2
+            exit 1
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # master
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+
+      - name: Fetch tree-sitter grammars
+        run: cargo run --package=helix-loader --bin=hx-loader
+
+      - name: Bundle grammars
+        run: tar cJf grammars.tar.xz -C runtime/grammars/sources .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: grammars
+          path: grammars.tar.xz
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: fetch-grammars
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: easy-helix-linux-x86_64
+            # Same as upstream: an older Ubuntu keeps the glibc requirement low.
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - name: easy-helix-macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+    env:
+      RUST_BACKTRACE: 1
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download grammars
+        uses: actions/download-artifact@v8
+        with:
+          name: grammars
+
+      - name: Move grammars under runtime
+        run: |
+          mkdir -p runtime/grammars/sources
+          tar xJf grammars.tar.xz -C runtime/grammars/sources
+
+      # Same as upstream: build with the stable toolchain installed below.
+      - name: Remove the rust-toolchain.toml file
+        run: rm rust-toolchain.toml
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88 # master
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --profile opt --locked --target ${{ matrix.target }}
+
+      - name: Package AppImage
+        if: runner.os == 'Linux'
+        run: |
+          tools="$RUNNER_TEMP/appimage-tools"
+          mkdir -p "$tools"
+          curl -fsSL -o "$tools/appimagetool" "$APPIMAGETOOL_URL"
+          curl -fsSL -o "$tools/runtime" "$APPIMAGE_RUNTIME_URL"
+          printf '%s  %s\n' \
+            "$APPIMAGETOOL_SHA256" "$tools/appimagetool" \
+            "$APPIMAGE_RUNTIME_SHA256" "$tools/runtime" | sha256sum -c -
+          chmod +x "$tools/appimagetool"
+
+          # Grammars are built by now; drop their sources (they hold dangling symlinks).
+          rm -rf runtime/grammars/sources
+          appdir="$RUNNER_TEMP/helix.AppDir"
+          mkdir -p "$appdir/usr/bin" "$appdir/usr/lib/helix"
+          install -m 0755 "target/${{ matrix.target }}/opt/hx" "$appdir/usr/bin/hx"
+          cp -R runtime "$appdir/usr/lib/helix/runtime"
+          cp contrib/Helix.desktop "$appdir/helix.desktop"
+          cp contrib/helix.png "$appdir/helix.png"
+          ln -s helix.png "$appdir/.DirIcon"
+          cat > "$appdir/AppRun" << 'EOF'
+          #!/bin/sh
+          APPDIR="$(dirname "$(readlink -f "$0")")"
+          HELIX_RUNTIME="$APPDIR/usr/lib/helix/runtime" exec "$APPDIR/usr/bin/hx" "$@"
+          EOF
+          chmod 755 "$appdir/AppRun"
+
+          # Runners have no FUSE, so appimagetool runs extracted. Use an absolute output
+          # path: an inherited OWD would make appimagetool resolve it from elsewhere.
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tools/appimagetool" --no-appstream \
+            --runtime-file "$tools/runtime" "$appdir" "$PWD/${{ matrix.name }}.AppImage"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./"${{ matrix.name }}.AppImage" --version
+
+      - name: Package macOS archive
+        if: runner.os == 'macOS'
+        run: |
+          # Grammars are built by now; drop their sources (they hold dangling symlinks
+          # that macOS cp fails on).
+          rm -rf runtime/grammars/sources
+          pkg="${{ matrix.name }}"
+          mkdir -p "$pkg/contrib"
+          cp "target/${{ matrix.target }}/opt/hx" "$pkg/hx"
+          cp -R runtime "$pkg/runtime"
+          cp -R contrib/completion "$pkg/contrib/"
+          cp LICENSE README.md README.en.md "$pkg/"
+          "$pkg/hx" --version
+          tar cJf "$pkg.tar.xz" "$pkg"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            ${{ matrix.name }}.AppImage
+            ${{ matrix.name }}.tar.xz
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [fetch-grammars, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check the tag points to this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if TAG_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha 2>/dev/null); then
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "error: tag $RELEASE_TAG points to $TAG_SHA instead of $GITHUB_SHA" >&2
+              exit 1
+            fi
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Write checksums and release notes
+        working-directory: dist
+        env:
+          BASE_VERSION: ${{ needs.fetch-grammars.outputs.base-version }}
+        run: |
+          sha256sum easy-helix-* > SHA256SUMS
+          cat SHA256SUMS
+          cat > "$RUNNER_TEMP/RELEASE_NOTES.md" << EOF
+          Built from \`$GITHUB_SHA\`, based on upstream Helix $BASE_VERSION.
+
+          - \`easy-helix-linux-x86_64.AppImage\`: \`chmod +x\` it and run it as \`hx\`. Without FUSE, set \`APPIMAGE_EXTRACT_AND_RUN=1\`.
+          - \`easy-helix-macos-aarch64.tar.xz\`: Apple silicon. Extract it and keep \`hx\` next to its \`runtime\` folder. The binary is not signed; if macOS blocks it, run \`xattr -d com.apple.quarantine hx\`.
+          EOF
+
+      - name: Create release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            dist/easy-helix-linux-x86_64.AppImage
+            dist/easy-helix-macos-aarch64.tar.xz
+            dist/SHA256SUMS
+          body_path: ${{ runner.temp }}/RELEASE_NOTES.md
+          fail_on_unmatched_files: true

@@ -2,13 +2,14 @@ pub mod default;
 pub mod macros;
 
 pub use crate::commands::MappableCommand;
-pub use default::default;
+pub use default::{default, easy_helix};
 
+use crate::commands::find_markdown_previewer;
 use arc_swap::{
     access::{DynAccess, DynGuard},
     ArcSwap,
 };
-use helix_view::{document::Mode, info::Info, input::KeyEvent};
+use helix_view::{document::Mode, info::Info, input::KeyEvent, Editor};
 use indexmap::IndexMap;
 use macros::key;
 use serde::Deserialize;
@@ -54,35 +55,41 @@ impl KeyTrieNode {
         }
     }
 
-    pub fn infobox(&self) -> Info {
-        let mut body: Vec<(BTreeSet<KeyEvent>, &str)> = Vec::with_capacity(self.len());
+    pub fn infobox(&self, editor: &Editor) -> Info {
+        let mut body: Vec<(BTreeSet<KeyEvent>, &str, bool)> = Vec::with_capacity(self.len());
         for (&key, trie) in self.iter() {
-            let desc = match trie {
+            let (desc, is_inactive) = match trie {
                 KeyTrie::MappableCommand(cmd) => {
                     if cmd.name() == "no_op" {
                         continue;
                     }
-                    cmd.doc()
+                    // Grey out the preview key when its program is missing.
+                    let is_inactive = cmd.name() == "markdown_preview"
+                        && find_markdown_previewer(editor).is_err();
+                    (cmd.doc(), is_inactive)
                 }
-                KeyTrie::Node(n) => &n.name,
-                KeyTrie::Sequence(_) => "[Multiple commands]",
+                KeyTrie::Node(n) => (n.name.as_str(), false),
+                KeyTrie::Sequence(_) => ("[Multiple commands]", false),
             };
-            match body.iter().position(|(_, d)| d == &desc) {
+            match body.iter().position(|(_, d, _)| d == &desc) {
                 Some(pos) => {
                     body[pos].0.insert(key);
                 }
-                None => body.push((BTreeSet::from([key]), desc)),
+                None => body.push((BTreeSet::from([key]), desc, is_inactive)),
             }
         }
 
+        let inactive_rows = (0..body.len()).filter(|&row| body[row].2).collect();
         let body: Vec<_> = body
             .into_iter()
-            .map(|(events, desc)| {
+            .map(|(events, desc, _)| {
                 let events = events.iter().map(ToString::to_string).collect::<Vec<_>>();
                 (events.join(", "), desc)
             })
             .collect();
-        Info::new(self.name.clone(), &body)
+        let mut info = Info::new(self.name.clone(), &body);
+        info.inactive_rows = inactive_rows;
+        info
     }
 }
 

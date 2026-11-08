@@ -8,6 +8,7 @@
 - [`[editor.file-picker]` Section](#editorfile-picker-section)
 - [`[editor.file-explorer]` Section](#editorfile-explorer-section)
 - [`[editor.buffer-picker]` Section](#editorbuffer-picker-section)
+- [`[editor.sidebar]` Section](#editorsidebar-section)
 - [`[editor.auto-pairs]` Section](#editorauto-pairs-section)
 - [`[editor.auto-save]` Section](#editorauto-save-section)
 - [`[editor.search]` Section](#editorsearch-section)
@@ -36,6 +37,7 @@
 | `default-yank-register` | Default register used for yank/paste | `'"'` |
 | `scroll-lines` | Number of lines to scroll per scroll wheel step | `3` |
 | `shell` | Shell to use when running external commands | Unix: `["sh", "-c"]`<br/>Windows: `["cmd", "/C"]` |
+| `markdown-preview` | Program and arguments that `Space-v` runs to preview a Markdown file. Arguments support [command expansions](./command-line.md#expansions), such as `%{file_path_absolute}`; write `%%` for a literal `%`. If the buffer has unsaved changes, `Space-v` asks to save first. When the program isn't in `PATH`, `v` is greyed out in the space menu | `["typora", "%{file_path_absolute}"]` |
 | `line-number` | Line number display: `absolute` simply shows each line's number, while `relative` shows the distance from the current line. When unfocused or in insert mode, `relative` will still show absolute line numbers | `"absolute"` |
 | `cursorline` | Highlight all lines with a cursor | `false` |
 | `cursorcolumn` | Highlight all columns with a cursor | `false` |
@@ -53,7 +55,7 @@
 | `true-color` | Whether to override automatic detection of terminal truecolor support in the event of a false negative | `false` |
 | `undercurl` | Whether to override automatic detection of terminal undercurl support in the event of a false negative | `false` |
 | `rulers` | List of column positions at which to display the rulers. Can be overridden by language specific `rulers` in `languages.toml` file | `[]` |
-| `bufferline` | Renders a line at the top of the editor displaying open buffers. Can be `always`, `never` or `multiple` (only shown if more than one buffer is in use) | `"never"` |
+| `bufferline` | Renders a line at the top of the editor displaying open buffers. Can be `always`, `never` or `multiple` (only shown if more than one buffer is in use) | `"multiple"` |
 | `color-modes` | Whether to color the mode indicator with different colors depending on the mode itself | `false` |
 | `text-width` | Maximum line length. Used for the `:reflow` command and soft-wrapping if `soft-wrap.wrap-at-text-width` is set | `80` |
 | `workspace-lsp-roots` | Directories relative to the workspace root that are treated as LSP roots. Should only be set in `.helix/config.toml` | `[]` |
@@ -250,6 +252,22 @@ Note that the ignore files consulted by the file explorer when `ignore` is set t
 |`git-global` | Enables reading global `.gitignore`, whose path is specified in git's config: `core.excludesfile` option | `false`
 |`git-exclude` | Enables reading `.git/info/exclude` files | `false`
 |`flatten-dirs` | Enables flattening single child directories | `true`
+
+### `[editor.sidebar]` Section
+
+A file tree on the left side of the screen, rooted at the current working directory.
+It uses the `[editor.file-explorer]` options to decide which files to show.
+Toggle it with `Space-t`; see the [keymap](./keymap.md#sidebar) for its keys.
+
+While the sidebar has focus, it widens to fit the file names (up to half the screen),
+shows the selected path in the bottom row, and goes back to its width when it loses focus.
+Long names are shortened with `…`. Drag its right border with the mouse to change the
+width until Helix exits.
+
+| Key | Description | Default |
+|--|--|---------|
+|`visible` | Show the sidebar on startup | `false` |
+|`width` | Width in columns, capped at half the screen. Not drawn when below 10 columns | `30` |
 
 ### `[editor.buffer-picker]` Section
 

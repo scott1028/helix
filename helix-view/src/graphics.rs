@@ -276,6 +276,10 @@ impl Rect {
             && self.y < other.y + other.height
             && self.y + self.height > other.y
     }
+
+    pub fn contains(self, x: u16, y: u16) -> bool {
+        x >= self.left() && x < self.right() && y >= self.top() && y < self.bottom()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -754,6 +758,17 @@ impl Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_rect_contains() {
+        let rect = Rect::new(2, 3, 4, 1);
+        assert!(rect.contains(2, 3));
+        assert!(rect.contains(5, 3));
+        assert!(!rect.contains(6, 3));
+        assert!(!rect.contains(1, 3));
+        assert!(!rect.contains(2, 4));
+        assert!(!Rect::default().contains(0, 0));
+    }
 
     #[test]
     fn test_rect_size_preservation() {

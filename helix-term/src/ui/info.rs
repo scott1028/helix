@@ -34,5 +34,14 @@ impl Component for Info {
         Paragraph::new(&Text::from(self.text.as_str()))
             .style(text_style)
             .render(inner, surface);
+
+        let inactive_style = cx.editor.theme.get("ui.text.inactive");
+        for &row in &self.inactive_rows {
+            let Some(y) = u16::try_from(row).ok().filter(|&row| row < inner.height) else {
+                continue;
+            };
+            let row_area = Rect::new(inner.x, inner.y + y, inner.width, 1);
+            surface.set_style(row_area, inactive_style);
+        }
     }
 }

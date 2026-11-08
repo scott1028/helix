@@ -6,7 +6,9 @@ use crate::{
     key,
     keymap::{KeymapResult, Keymaps},
     ui::{
+        bufferline::Bufferline,
         document::{render_document, LinePos, TextRenderer},
+        sidebar::{sidebar_allows, FileTree, TreeAction},
         statusline,
         text_decorations::{self, Decoration, DecorationManager, InlineDiagnostics},
         Completion, ProgressSpinners,
@@ -24,16 +26,19 @@ use helix_core::{
 };
 use helix_view::{
     annotations::diagnostics::DiagnosticFilter,
-    document::{Mode, SCRATCH_BUFFER_NAME},
-    editor::{CompleteAction, CursorShapeConfig},
+    document::Mode,
+    editor::{Action, CloseError, CompleteAction, CursorShapeConfig},
     graphics::{Color, CursorKind, Modifier, Rect, Style},
     input::{KeyEvent, MouseButton, MouseEvent, MouseEventKind},
     keyboard::{KeyCode, KeyModifiers},
     Document, Editor, Theme, View,
 };
-use std::{mem::take, num::NonZeroUsize, ops, path::PathBuf, rc::Rc};
+use std::{mem::take, num::NonZeroUsize, ops, rc::Rc};
 
 use tui::{buffer::Buffer as Surface, text::Span};
+
+/// Narrower sidebars are not drawn; dragging the border stops here.
+const MIN_SIDEBAR_WIDTH: u16 = 10;
 
 pub struct EditorView {
     pub keymaps: Keymaps,
@@ -41,6 +46,17 @@ pub struct EditorView {
     pseudo_pending: Vec<KeyEvent>,
     pub(crate) last_insert: (commands::MappableCommand, Vec<InsertEvent>),
     pub(crate) completion: Option<Completion>,
+    bufferline: Bufferline,
+    /// Built on first show and rebuilt when the working directory changes.
+    file_tree: Option<FileTree>,
+    /// Sidebar area of the last render; empty when hidden.
+    sidebar_area: Rect,
+    /// Set while a click that started on the bufferline or sidebar is held, so its drag/up events are swallowed.
+    mouse_capture: bool,
+    /// Set while the sidebar border is dragged.
+    is_resizing_sidebar: bool,
+    /// Keeps a width dragged while focused, instead of widening to fit, until focus leaves.
+    is_sidebar_width_pinned: bool,
     spinners: ProgressSpinners,
     /// Tracks if the terminal window is focused by reaction to terminal focus events
     terminal_focused: bool,
@@ -65,6 +81,12 @@ impl EditorView {
             pseudo_pending: Vec::new(),
             last_insert: (commands::MappableCommand::normal_mode, Vec::new()),
             completion: None,
+            bufferline: Bufferline::default(),
+            file_tree: None,
+            sidebar_area: Rect::default(),
+            mouse_capture: false,
+            is_resizing_sidebar: false,
+            is_sidebar_width_pinned: false,
             spinners: ProgressSpinners::default(),
             terminal_focused: true,
         }
@@ -659,59 +681,6 @@ impl EditorView {
         Some(OverlayHighlights::Homogeneous { highlight, ranges })
     }
 
-    /// Render bufferline at the top
-    pub fn render_bufferline(editor: &Editor, viewport: Rect, surface: &mut Surface) {
-        let scratch = PathBuf::from(SCRATCH_BUFFER_NAME); // default filename to use for scratch buffer
-        surface.clear_with(
-            viewport,
-            editor
-                .theme
-                .try_get("ui.bufferline.background")
-                .unwrap_or_else(|| editor.theme.get("ui.statusline")),
-        );
-
-        let bufferline_active = editor
-            .theme
-            .try_get("ui.bufferline.active")
-            .unwrap_or_else(|| editor.theme.get("ui.statusline.active"));
-
-        let bufferline_inactive = editor
-            .theme
-            .try_get("ui.bufferline")
-            .unwrap_or_else(|| editor.theme.get("ui.statusline.inactive"));
-
-        let mut x = viewport.x;
-        let current_doc = view!(editor).doc;
-
-        for doc in editor.documents() {
-            let fname = doc
-                .path()
-                .unwrap_or(&scratch)
-                .file_name()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default();
-
-            let style = if current_doc == doc.id() {
-                bufferline_active
-            } else {
-                bufferline_inactive
-            };
-
-            let text = format!(" {}{} ", fname, if doc.is_modified() { "[+]" } else { "" });
-            let used_width = viewport.x.saturating_sub(x);
-            let rem_width = surface.area.width.saturating_sub(used_width);
-
-            x = surface
-                .set_stringn(x, viewport.y, &text, rem_width as usize, style)
-                .0;
-
-            if x >= surface.area.right() {
-                break;
-            }
-        }
-    }
-
     pub fn render_gutter<'d>(
         editor: &'d Editor,
         doc: &'d Document,
@@ -939,9 +908,12 @@ impl EditorView {
         let mut last_mode = mode;
         self.pseudo_pending.extend(self.keymaps.pending());
         let key_result = self.keymaps.get(mode, event);
-        cxt.editor.autoinfo = self.keymaps.sticky().map(|node| node.infobox());
+        cxt.editor.autoinfo = self.keymaps.sticky().map(|node| node.infobox(cxt.editor));
 
         let mut execute_command = |command: &commands::MappableCommand| {
+            if cxt.editor.sidebar.focused && !sidebar_allows(command) {
+                return;
+            }
             command.execute(cxt);
             helix_event::dispatch(PostCommand { command, cx: cxt });
 
@@ -970,7 +942,7 @@ impl EditorView {
             KeymapResult::Matched(command) => {
                 execute_command(command);
             }
-            KeymapResult::Pending(node) => cxt.editor.autoinfo = Some(node.infobox()),
+            KeymapResult::Pending(node) => cxt.editor.autoinfo = Some(node.infobox(cxt.editor)),
             KeymapResult::MatchedSequence(commands) => {
                 for command in commands {
                     execute_command(command);
@@ -1027,7 +999,7 @@ impl EditorView {
                 cxt.editor.count = NonZeroUsize::new(i);
             }
             // special handling for repeat operator
-            (key!('.'), _) if self.keymaps.pending().is_empty() => {
+            (key!('.'), _) if self.keymaps.pending().is_empty() && !cxt.editor.sidebar.focused => {
                 for _ in 0..cxt.editor.count.map_or(1, NonZeroUsize::into) {
                     // first execute whatever put us into insert mode
                     self.last_insert.0.execute(cxt);
@@ -1199,11 +1171,72 @@ impl EditorView {
         self.pseudo_pending.clear();
     }
 
+    /// Sends `key` to the file tree when the sidebar has focus and no key sequence is pending.
+    /// Returns false when the key should go through the normal keymap instead.
+    fn handle_sidebar_key(&mut self, cx: &mut commands::Context, key: KeyEvent) -> bool {
+        if !cx.editor.sidebar.focused
+            || self.on_next_key.is_some()
+            || !self.keymaps.pending().is_empty()
+            || self.keymaps.sticky().is_some()
+        {
+            return false;
+        }
+        let Some(tree) = &mut self.file_tree else {
+            return false;
+        };
+        let count = cx.editor.count.map_or(1, NonZeroUsize::get);
+        let action = tree.handle_key(key, count, &cx.editor.config().file_explorer);
+        match action {
+            TreeAction::Ignored => return false,
+            TreeAction::Consumed => {}
+            TreeAction::Open(path) => {
+                // Opening switches the view, which also takes focus back from the sidebar.
+                if let Err(err) = cx.editor.open(&path, Action::Replace) {
+                    cx.editor
+                        .set_error(format!("unable to open \"{}\": {err}", path.display()));
+                }
+            }
+            TreeAction::Unfocus => cx.editor.sidebar.focused = false,
+        }
+        cx.editor.count = None;
+        true
+    }
+
     fn handle_mouse_event(
         &mut self,
         event: &MouseEvent,
         cxt: &mut commands::Context,
     ) -> EventResult {
+        if self.is_resizing_sidebar {
+            match event.kind {
+                MouseEventKind::Drag(_) => {
+                    let max_width = cxt.editor.tree.area().right() / 2;
+                    let width = (event.column + 1).min(max_width).max(MIN_SIDEBAR_WIDTH);
+                    cxt.editor.sidebar.resized_width = Some(width);
+                    self.is_sidebar_width_pinned = true;
+                    return EventResult::Consumed(None);
+                }
+                MouseEventKind::Up(_) => {
+                    self.is_resizing_sidebar = false;
+                    return EventResult::Consumed(None);
+                }
+                _ => self.is_resizing_sidebar = false,
+            }
+        }
+
+        // Swallow the rest of a click that started on the bufferline or sidebar, so
+        // the default drag-select, yank-on-release and middle-click paste don't run.
+        if self.mouse_capture {
+            match event.kind {
+                MouseEventKind::Drag(_) => return EventResult::Consumed(None),
+                MouseEventKind::Up(_) => {
+                    self.mouse_capture = false;
+                    return EventResult::Consumed(None);
+                }
+                _ => self.mouse_capture = false,
+            }
+        }
+
         if event.kind != MouseEventKind::Moved {
             self.handle_non_key_input(cxt)
         }
@@ -1235,6 +1268,75 @@ impl EditorView {
                     .map(|coords| (coords, view.id))
             })
         };
+
+        if self.bufferline.area().contains(column, row) {
+            if let MouseEventKind::Down(button @ (MouseButton::Left | MouseButton::Middle)) = kind {
+                self.mouse_capture = true;
+                if let Some(doc_id) = self.bufferline.tab_at(column, row) {
+                    if button == MouseButton::Left {
+                        if doc_id != view!(cxt.editor).doc {
+                            cxt.editor.switch(doc_id, Action::Replace);
+                        }
+                    } else {
+                        match cxt.editor.close_document(doc_id, false) {
+                            Err(CloseError::BufferModified(name)) => {
+                                cxt.editor.set_error(format!("{name} has unsaved changes"))
+                            }
+                            Err(CloseError::SaveError(err)) => {
+                                cxt.editor.set_error(err.to_string())
+                            }
+                            Ok(()) | Err(CloseError::DoesNotExist) => {}
+                        }
+                    }
+                }
+            }
+            return EventResult::Consumed(None);
+        }
+
+        if self.sidebar_area.contains(column, row) {
+            // Dragging the border (last column) resizes; it doesn't take focus.
+            if kind == MouseEventKind::Down(MouseButton::Left)
+                && column == self.sidebar_area.right() - 1
+            {
+                self.is_resizing_sidebar = true;
+                return EventResult::Consumed(None);
+            }
+            if let MouseEventKind::Down(button) = kind {
+                self.mouse_capture = true;
+                if button == MouseButton::Left {
+                    self.clear_completion(cxt.editor);
+                    cxt.editor.focus_sidebar();
+                }
+            }
+            let Some(tree) = &mut self.file_tree else {
+                return EventResult::Consumed(None);
+            };
+            match kind {
+                MouseEventKind::Down(MouseButton::Left) => {
+                    // Row 0 is the title.
+                    let idx = (row - self.sidebar_area.y)
+                        .checked_sub(1)
+                        .and_then(|row| tree.row_at(usize::from(row)));
+                    if let Some(idx) = idx {
+                        tree.select(idx);
+                        if let TreeAction::Open(path) =
+                            tree.activate_selected(&config.file_explorer)
+                        {
+                            if let Err(err) = cxt.editor.open(&path, Action::Replace) {
+                                cxt.editor.set_error(format!(
+                                    "unable to open \"{}\": {err}",
+                                    path.display()
+                                ));
+                            }
+                        }
+                    }
+                }
+                MouseEventKind::ScrollUp => tree.scroll_by(-config.scroll_lines.saturating_abs()),
+                MouseEventKind::ScrollDown => tree.scroll_by(config.scroll_lines.saturating_abs()),
+                _ => {}
+            }
+            return EventResult::Consumed(None);
+        }
 
         match kind {
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1462,6 +1564,7 @@ impl Component for EditorView {
         };
 
         match event {
+            Event::Paste(_) if cx.editor.sidebar.focused => EventResult::Consumed(None),
             Event::Paste(contents) => {
                 self.handle_non_key_input(&mut cx);
                 cx.count = cx.editor.count;
@@ -1495,7 +1598,9 @@ impl Component for EditorView {
 
                 let mode = cx.editor.mode();
 
-                if !self.on_next_key(OnKeyCallbackKind::PseudoPending, &mut cx, key) {
+                if !self.on_next_key(OnKeyCallbackKind::PseudoPending, &mut cx, key)
+                    && !self.handle_sidebar_key(&mut cx, key)
+                {
                     match mode {
                         Mode::Insert => {
                             // let completion swallow the event if necessary
@@ -1628,8 +1733,38 @@ impl Component for EditorView {
             _ => false,
         };
 
+        // Sidebar takes the full height on the left; skip it when too narrow.
+        if cx.editor.mode != Mode::Normal {
+            cx.editor.sidebar.focused = false;
+        }
+        let sidebar = cx.editor.sidebar;
+        if !sidebar.focused {
+            self.is_sidebar_width_pinned = false;
+        }
+        let mut sidebar_width = 0;
+        if sidebar.visible {
+            let cwd = helix_stdx::env::current_working_dir();
+            let tree = match &mut self.file_tree {
+                Some(tree) if tree.root() == cwd => tree,
+                file_tree => file_tree.insert(FileTree::new(cwd, &config.file_explorer)),
+            };
+            sidebar_width = sidebar.resized_width.unwrap_or(config.sidebar.width);
+            // While focused, widen to fit the names, unless the border was dragged.
+            if sidebar.focused && !self.is_sidebar_width_pinned {
+                sidebar_width = sidebar_width.max(tree.content_width());
+            }
+            sidebar_width = sidebar_width.min(area.width / 2);
+        }
+        if sidebar_width < MIN_SIDEBAR_WIDTH {
+            sidebar_width = 0;
+            cx.editor.sidebar.focused = false;
+        }
+
         // -1 for commandline and -1 for bufferline
         let mut editor_area = area.clip_bottom(1);
+        let sidebar_area = editor_area.with_width(sidebar_width);
+        editor_area = editor_area.clip_left(sidebar_width);
+        let bufferline_area = editor_area.with_height(1);
         if use_bufferline {
             editor_area = editor_area.clip_top(1);
         }
@@ -1638,11 +1773,31 @@ impl Component for EditorView {
         cx.editor.resize(editor_area);
 
         if use_bufferline {
-            Self::render_bufferline(cx.editor, area.with_height(1), surface);
+            self.bufferline.render(cx.editor, bufferline_area, surface);
+        } else {
+            self.bufferline = Bufferline::default();
         }
 
+        self.sidebar_area = if sidebar_width > 0 {
+            sidebar_area
+        } else {
+            Rect::default()
+        };
+        if sidebar_width > 0 {
+            if let Some(tree) = &mut self.file_tree {
+                tree.render(
+                    sidebar_area,
+                    surface,
+                    &cx.editor.theme,
+                    cx.editor.sidebar.focused,
+                );
+            }
+        }
+
+        let is_sidebar_focused = cx.editor.sidebar.focused;
         for (view, is_focused) in cx.editor.tree.views() {
             let doc = cx.editor.document(view.doc).unwrap();
+            let is_focused = is_focused && !is_sidebar_focused;
             self.render_view(cx.editor, doc, view, area, surface, is_focused);
         }
 
@@ -1672,6 +1827,14 @@ impl Component for EditorView {
                 status_msg,
                 style,
             );
+        } else if cx.editor.sidebar.focused {
+            // Show the selected sidebar path where messages go.
+            if let Some(tree) = &self.file_tree {
+                // Leave room for pending keys and the macro and trust indicators.
+                let width = area.width.saturating_sub(key_width + 6);
+                let row = Rect::new(area.x, area.y + area.height.saturating_sub(1), width, 1);
+                tree.render_selected_path(row, surface, &cx.editor.theme);
+            }
         }
 
         if area.width.saturating_sub(status_msg_width as u16) > key_width {
@@ -1735,6 +1898,9 @@ impl Component for EditorView {
     }
 
     fn cursor(&self, _area: Rect, editor: &Editor) -> (Option<Position>, CursorKind) {
+        if editor.sidebar.focused {
+            return (None, CursorKind::Hidden);
+        }
         match editor.cursor() {
             // all block cursors are drawn manually
             (pos, CursorKind::Block) => {

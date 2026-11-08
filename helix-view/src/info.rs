@@ -13,6 +13,8 @@ pub struct Info {
     pub width: u16,
     /// Body height.
     pub height: u16,
+    /// Body rows (0-based) drawn as inactive, e.g. commands that can't run.
+    pub inactive_rows: Vec<usize>,
 }
 
 impl Info {
@@ -29,6 +31,7 @@ impl Info {
                 width: title.len() as u16,
                 text: "".to_string(),
                 title,
+                inactive_rows: Vec::new(),
             };
         }
 
@@ -54,6 +57,7 @@ impl Info {
             width: text.lines().map(|l| l.width()).max().unwrap() as u16,
             height: body.len() as u16,
             text,
+            inactive_rows: Vec::new(),
         }
     }
 

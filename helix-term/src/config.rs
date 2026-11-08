@@ -28,7 +28,7 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             theme: None,
-            keys: keymap::default(),
+            keys: keymap::easy_helix(),
             editor: helix_view::editor::Config::default(),
         }
     }
@@ -66,7 +66,7 @@ impl Config {
             local.and_then(|file| toml::from_str(&file).map_err(ConfigLoadError::BadConfig));
         let res = match (global_config, local_config) {
             (Ok(global), Ok(local)) => {
-                let mut keys = keymap::default();
+                let mut keys = keymap::easy_helix();
                 if let Some(global_keys) = global.keys {
                     merge_keys(&mut keys, global_keys)
                 }
@@ -96,7 +96,7 @@ impl Config {
                 return Err(ConfigLoadError::BadConfig(err))
             }
             (Ok(config), Err(_)) | (Err(_), Ok(config)) => {
-                let mut keys = keymap::default();
+                let mut keys = keymap::easy_helix();
                 if let Some(keymap) = config.keys {
                     merge_keys(&mut keys, keymap);
                 }
@@ -176,7 +176,7 @@ mod tests {
             A-F12 = "move_next_word_end"
         "#;
 
-        let mut keys = keymap::default();
+        let mut keys = keymap::easy_helix();
         merge_keys(
             &mut keys,
             hashmap! {
@@ -203,10 +203,10 @@ mod tests {
     fn keys_resolve_to_correct_defaults() {
         // From serde default
         let default_keys = Config::load_test("").keys;
-        assert_eq!(default_keys, keymap::default());
+        assert_eq!(default_keys, keymap::easy_helix());
 
         // From the Default trait
         let default_keys = Config::default().keys;
-        assert_eq!(default_keys, keymap::default());
+        assert_eq!(default_keys, keymap::easy_helix());
     }
 }

@@ -406,6 +406,9 @@ impl MappableCommand {
         file_explorer, "Open file explorer in workspace root",
         file_explorer_in_current_buffer_directory, "Open file explorer at current buffer's directory",
         file_explorer_in_current_directory, "Open file explorer at current working directory",
+        toggle_sidebar, "Show or hide the file tree sidebar",
+        toggle_sidebar_focus, "Move focus between the file tree sidebar and the editor",
+        markdown_preview, "Preview Markdown file in external program",
         code_action, "Perform code action",
         buffer_picker, "Open buffer picker",
         jumplist_picker, "Open jumplist picker",
@@ -5929,6 +5932,113 @@ fn save_selection(cx: &mut Context) {
     cx.editor.set_status("Selection saved to jumplist");
 }
 
+fn toggle_sidebar(cx: &mut Context) {
+    let sidebar = &mut cx.editor.sidebar;
+    sidebar.visible = !sidebar.visible;
+    sidebar.focused = false;
+}
+
+fn toggle_sidebar_focus(cx: &mut Context) {
+    if cx.editor.sidebar.focused {
+        cx.editor.sidebar.focused = false;
+    } else {
+        cx.editor.focus_sidebar();
+    }
+}
+
+fn markdown_preview(cx: &mut Context) {
+    let doc = doc!(cx.editor);
+    if doc.language_name() != Some("markdown") {
+        cx.editor.set_error("Not a Markdown file");
+        return;
+    }
+    if doc.path().is_none() {
+        cx.editor.set_error("Save the buffer to a file first");
+        return;
+    }
+    let is_modified = doc.is_modified();
+    let program = match find_markdown_previewer(cx.editor) {
+        Ok(program) => program,
+        Err(err) => {
+            cx.editor.set_error(err.to_string());
+            return;
+        }
+    };
+    if !is_modified {
+        open_markdown_preview(cx.editor, program);
+        return;
+    }
+
+    // The previewer reads the file on disk, so unsaved changes must be written first.
+    cx.editor.autoinfo = Some(Info::new(
+        "Save changes to preview?",
+        &[("y", "Save, then open the preview"), ("n", "Cancel")],
+    ));
+    cx.on_next_key(move |cx, event| {
+        cx.editor.autoinfo = None;
+        if event.char() != Some('y') {
+            return;
+        }
+        MappableCommand::Typable {
+            name: "write".to_string(),
+            args: String::new(),
+            doc: String::new(),
+        }
+        .execute(cx);
+        // Like `:wq`: wait for the write so the previewer reads the new content.
+        if let Err(err) = cx.block_try_flush_writes() {
+            cx.editor.set_error(err.to_string());
+            return;
+        }
+        // `:write` already reported why it failed.
+        if doc!(cx.editor).is_modified() {
+            return;
+        }
+        open_markdown_preview(cx.editor, program);
+    });
+}
+
+/// Runs the `markdown-preview` command without waiting for it.
+fn open_markdown_preview(editor: &mut Editor, program: PathBuf) {
+    let config = editor.config();
+    let args = match config
+        .markdown_preview
+        .iter()
+        .skip(1)
+        .map(|arg| expansion::expand(editor, command_line::Token::expand(arg.as_str())))
+        .collect::<anyhow::Result<Vec<_>>>()
+    {
+        Ok(args) => args,
+        Err(err) => {
+            editor.set_error(format!("Failed to expand `markdown-preview`: {err}"));
+            return;
+        }
+    };
+
+    let mut command = tokio::process::Command::new(&program);
+    command
+        .args(args.iter().map(AsRef::<str>::as_ref))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    // Own process group: closing the terminal does not close the previewer.
+    #[cfg(unix)]
+    command.process_group(0);
+    // Tokio reaps the dropped child in the background.
+    if let Err(err) = command.spawn() {
+        editor.set_error(format!("Failed to start `{}`: {err}", program.display()));
+    }
+}
+
+/// Finds the program of the `markdown-preview` setting in PATH.
+pub(crate) fn find_markdown_previewer(editor: &Editor) -> anyhow::Result<PathBuf> {
+    let config = editor.config();
+    let Some(program) = config.markdown_preview.first() else {
+        bail!("`markdown-preview` is not set");
+    };
+    helix_stdx::env::which(program).map_err(|_| anyhow!("`{program}` not found in PATH"))
+}
+
 fn rotate_view(cx: &mut Context) {
     cx.editor.focus_next()
 }
@@ -5938,11 +6048,28 @@ fn rotate_view_reverse(cx: &mut Context) {
 }
 
 fn jump_view_right(cx: &mut Context) {
+    // From the sidebar, go back to the last focused view.
+    if cx.editor.sidebar.focused {
+        cx.editor.sidebar.focused = false;
+        return;
+    }
     cx.editor.focus_direction(tree::Direction::Right)
 }
 
 fn jump_view_left(cx: &mut Context) {
-    cx.editor.focus_direction(tree::Direction::Left)
+    let editor = &mut cx.editor;
+    if editor.sidebar.focused {
+        return;
+    }
+    let is_leftmost = editor
+        .tree
+        .find_split_in_direction(editor.tree.focus, tree::Direction::Left)
+        .is_none();
+    if editor.sidebar.visible && is_leftmost {
+        editor.focus_sidebar();
+    } else {
+        editor.focus_direction(tree::Direction::Left)
+    }
 }
 
 fn jump_view_up(cx: &mut Context) {

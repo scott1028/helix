@@ -377,6 +377,22 @@ fn buffer_previous(
     Ok(())
 }
 
+fn buffer_goto(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+
+    let index = match args[0].parse::<usize>() {
+        Ok(index) if index > 0 => index,
+        _ => bail!("buffer index must be a positive number"),
+    };
+    // Same order as the bufferline; clamp to the last buffer.
+    let ids = cx.editor.documents.keys();
+    let id = *ids.clone().nth(index - 1).or_else(|| ids.last()).unwrap();
+    cx.editor.switch(id, Action::Replace);
+    Ok(())
+}
+
 fn write_impl(
     cx: &mut compositor::Context,
     path: Option<&str>,
@@ -3140,6 +3156,17 @@ pub const TYPABLE_COMMAND_LIST: &[TypableCommand] = &[
         completer: CommandCompleter::none(),
         signature: Signature {
             positionals: (0, Some(0)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "buffer-goto",
+        aliases: &[],
+        doc: "Goto the buffer at the given 1-based position in the bufferline. Larger values go to the last buffer.",
+        fun: buffer_goto,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (1, Some(1)),
             ..Signature::DEFAULT
         },
     },
